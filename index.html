@@ -1,0 +1,2210 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>صيدليتي برو | نظام المحاسبة وإدارة الصيدليات المتكامل</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Cairo & Tajawal -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Cairo', 'sans-serif'],
+                    },
+                    colors: {
+                        navy: {
+                            800: '#0f2942',
+                            900: '#0a1c2e',
+                            950: '#06121e',
+                        },
+                        medical: {
+                            50: '#ecfdf5',
+                            100: '#d1fae5',
+                            500: '#10b981',
+                            600: '#059669',
+                            700: '#047857',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body {
+            font-family: 'Cairo', sans-serif;
+            background-color: #f1f5f9;
+        }
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 9999px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+        /* Print Styles for Thermal Receipt */
+        @media print {
+            body * {
+                visibility: hidden;
+            }
+            #printable-receipt, #printable-receipt * {
+                visibility: visible;
+            }
+            #printable-receipt {
+                position: fixed;
+                left: 0;
+                top: 0;
+                width: 80mm;
+                padding: 10px;
+                margin: 0;
+                background: white;
+                color: black;
+                box-shadow: none !important;
+            }
+            .no-print {
+                display: none !important;
+            }
+        }
+        .fade-in {
+            animation: fadeIn 0.25s ease-in-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(6px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body class="text-slate-800 antialiased overflow-x-hidden">
+
+    <!-- Toast Notification Container -->
+    <div id="toast-container" class="fixed top-5 left-5 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none"></div>
+
+    <div class="flex h-screen overflow-hidden">
+        <!-- Mobile Sidebar Backdrop -->
+        <div id="sidebar-backdrop" onclick="toggleSidebar()" class="fixed inset-0 bg-slate-900/60 z-30 hidden lg:hidden backdrop-blur-sm transition-opacity"></div>
+
+        <!-- Sidebar -->
+        <aside id="sidebar" class="fixed lg:static inset-y-0 right-0 z-40 w-72 bg-navy-900 text-white flex flex-col transition-transform duration-300 translate-x-full lg:translate-x-0 shadow-2xl">
+            <!-- Brand Header -->
+            <div class="p-6 border-b border-slate-800 flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <div class="w-11 h-11 rounded-xl bg-gradient-to-br from-medical-500 to-medical-700 flex items-center justify-center shadow-lg shadow-medical-500/30">
+                        <i class="fa-solid fa-staff-snake text-2xl text-white"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-xl font-extrabold tracking-tight text-white">صيدليتي <span class="text-medical-500">برو</span></h1>
+                        <p class="text-xs text-slate-400">نظام المحاسبة والمخزون</p>
+                    </div>
+                </div>
+                <button onclick="toggleSidebar()" class="lg:hidden text-slate-400 hover:text-white p-2">
+                    <i class="fa-solid fa-xmark text-xl"></i>
+                </button>
+            </div>
+
+            <!-- Navigation Links -->
+            <nav class="flex-1 p-4 space-y-1.5 overflow-y-auto">
+                <button onclick="switchTab('dashboard')" id="nav-dashboard" class="nav-btn w-full flex items-center gap-3.5 px-4 py-3.5 rounded-xl text-sm font-bold transition-all bg-medical-600 text-white shadow-md shadow-medical-600/20">
+                    <i class="fa-solid fa-chart-pie w-5 text-center text-base"></i>
+                    <span>لوحة القيادة</span>
+                </button>
+
+                <button onclick="switchTab('pos')" id="nav-pos" class="nav-btn w-full flex items-center justify-between px-4 py-3.5 rounded-xl text-sm font-semibold text-slate-300 hover:bg-navy-800 hover:text-white transition-all">
+                    <div class="flex items-center gap-3.5">
+                        <i class="fa-solid fa-cash-register w-5 text-center text-base text-medical-400"></i>
+                        <span>نقطة البيع (الكاشير)</span>
+                    </div>
+                    <span class="bg-medical-500/20 text-medical-400 text-[11px] px-2 py-0.5 rounded-full font-bold">F2</span>
+                </button>
+
+                <button onclick="switchTab('inventory')" id="nav-inventory" class="nav-btn w-full flex items-center justify-between px-4 py-3.5 rounded-xl text-sm font-semibold text-slate-300 hover:bg-navy-800 hover:text-white transition-all">
+                    <div class="flex items-center gap-3.5">
+                        <i class="fa-solid fa-pills w-5 text-center text-base text-sky-400"></i>
+                        <span>المخزون والأدوية</span>
+                    </div>
+                    <span id="sidebar-alert-badge" class="hidden bg-rose-500 text-white text-[11px] px-2 py-0.5 rounded-full font-bold">0</span>
+                </button>
+
+                <button onclick="switchTab('suppliers')" id="nav-suppliers" class="nav-btn w-full flex items-center gap-3.5 px-4 py-3.5 rounded-xl text-sm font-semibold text-slate-300 hover:bg-navy-800 hover:text-white transition-all">
+                    <i class="fa-solid fa-truck-medical w-5 text-center text-base text-amber-400"></i>
+                    <span>الموردون والمشتريات</span>
+                </button>
+
+                <button onclick="switchTab('accounting')" id="nav-accounting" class="nav-btn w-full flex items-center gap-3.5 px-4 py-3.5 rounded-xl text-sm font-semibold text-slate-300 hover:bg-navy-800 hover:text-white transition-all">
+                    <i class="fa-solid fa-file-invoice-dollar w-5 text-center text-base text-purple-400"></i>
+                    <span>المصروفات والتقارير المالية</span>
+                </button>
+            </nav>
+
+            <!-- Sidebar Footer / System Tools -->
+            <div class="p-4 border-t border-slate-800 space-y-2">
+                <button onclick="exportAllDataCSV()" class="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-navy-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition">
+                    <i class="fa-solid fa-file-excel text-medical-400"></i>
+                    <span>تصدير التقرير الشامل (CSV)</span>
+                </button>
+                <button onclick="confirmResetDemoData()" class="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-slate-400 hover:text-rose-400 hover:bg-rose-950/30 text-xs font-medium transition">
+                    <i class="fa-solid fa-rotate-right"></i>
+                    <span>إعادة ضبط البيانات التجريبية</span>
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <div class="flex-1 flex flex-col h-screen overflow-hidden">
+            <!-- Top Header -->
+            <header class="bg-white border-b border-slate-200 px-4 lg:px-8 py-3.5 flex items-center justify-between shadow-sm z-20">
+                <div class="flex items-center gap-3">
+                    <button onclick="toggleSidebar()" class="lg:hidden p-2.5 rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200">
+                        <i class="fa-solid fa-bars text-lg"></i>
+                    </button>
+                    <div>
+                        <h2 id="page-title" class="text-lg lg:text-xl font-extrabold text-navy-900">لوحة القيادة والملخص العام</h2>
+                        <p id="current-date-display" class="text-xs text-slate-500 hidden sm:block"></p>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-3">
+                    <button onclick="switchTab('pos')" class="flex items-center gap-2 bg-medical-600 hover:bg-medical-700 text-white px-4 py-2.5 rounded-xl text-sm font-bold shadow-sm transition">
+                        <i class="fa-solid fa-plus"></i>
+                        <span class="hidden sm:inline">فاتورة بيع جديدة</span>
+                    </button>
+                    <div class="h-8 w-[1px] bg-slate-200 mx-1 hidden sm:block"></div>
+                    <div class="flex items-center gap-2.5 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200">
+                        <div class="w-8 h-8 rounded-full bg-navy-900 text-white flex items-center justify-center font-bold text-sm">
+                            د
+                        </div>
+                        <div class="hidden md:block text-right">
+                            <p class="text-xs font-bold text-slate-800">د. أحمد المنصور</p>
+                            <p class="text-[11px] text-medical-600 font-semibold">صيدلي مدير • وردية صباحية</p>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Dynamic Views Container -->
+            <main class="flex-1 overflow-y-auto p-4 lg:p-6 space-y-6">
+
+                <!-- ==================== 1. DASHBOARD VIEW ==================== -->
+                <section id="view-dashboard" class="view-section fade-in space-y-6">
+                    <!-- KPI Cards -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 lg:gap-5">
+                        <!-- Today's Sales -->
+                        <div class="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-sm hover:shadow-md transition">
+                            <div class="flex items-center justify-between mb-3">
+                                <span class="text-xs font-bold text-slate-500">إجمالي مبيعات اليوم</span>
+                                <div class="w-10 h-10 rounded-xl bg-medical-50 text-medical-600 flex items-center justify-center text-lg">
+                                    <i class="fa-solid fa-coins"></i>
+                                </div>
+                            </div>
+                            <div class="flex items-baseline justify-between">
+                                <h3 id="kpi-today-sales" class="text-2xl font-extrabold text-navy-900">0.00 ج.م</h3>
+                                <span id="kpi-today-invoices" class="text-xs font-bold text-medical-600 bg-medical-50 px-2.5 py-1 rounded-lg">0 فاتورة</span>
+                            </div>
+                        </div>
+
+                        <!-- Net Profit -->
+                        <div class="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-sm hover:shadow-md transition">
+                            <div class="flex items-center justify-between mb-3">
+                                <span class="text-xs font-bold text-slate-500">صافي الأرباح (الإجمالي)</span>
+                                <div class="w-10 h-10 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center text-lg">
+                                    <i class="fa-solid fa-chart-line"></i>
+                                </div>
+                            </div>
+                            <div class="flex items-baseline justify-between">
+                                <h3 id="kpi-net-profit" class="text-2xl font-extrabold text-navy-900">0.00 ج.م</h3>
+                                <span class="text-xs font-semibold text-slate-400">بعد المصروفات</span>
+                            </div>
+                        </div>
+
+                        <!-- Inventory Value -->
+                        <div class="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-sm hover:shadow-md transition">
+                            <div class="flex items-center justify-between mb-3">
+                                <span class="text-xs font-bold text-slate-500">قيمة المخزون الحالي (بالتكلفة)</span>
+                                <div class="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center text-lg">
+                                    <i class="fa-solid fa-boxes-stacked"></i>
+                                </div>
+                            </div>
+                            <div class="flex items-baseline justify-between">
+                                <h3 id="kpi-inventory-val" class="text-2xl font-extrabold text-navy-900">0.00 ج.م</h3>
+                                <span id="kpi-total-items" class="text-xs font-bold text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-lg">0 صنف</span>
+                            </div>
+                        </div>
+
+                        <!-- Alerts (Low Stock + Expiring) -->
+                        <div class="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-sm hover:shadow-md transition">
+                            <div class="flex items-center justify-between mb-3">
+                                <span class="text-xs font-bold text-slate-500">تنبيهات النواقص والصلاحية</span>
+                                <div class="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center text-lg">
+                                    <i class="fa-solid fa-triangle-exclamation"></i>
+                                </div>
+                            </div>
+                            <div class="flex items-baseline justify-between">
+                                <h3 id="kpi-alerts-count" class="text-2xl font-extrabold text-rose-600">0 تنبيه</h3>
+                                <button onclick="switchTab('inventory')" class="text-xs font-bold text-rose-600 hover:underline">عرض التفاصيل ←</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Charts & Alerts Row -->
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <!-- Sales & Profit Chart -->
+                        <div class="lg:col-span-2 bg-white rounded-2xl p-5 border border-slate-200/80 shadow-sm">
+                            <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
+                                <div>
+                                    <h3 class="text-base font-extrabold text-navy-900">تحليل المبيعات والأرباح الأسبوعية</h3>
+                                    <p class="text-xs text-slate-500">مقارنة إجمالي الإيرادات بصافي الربح المحقق خلال آخر 7 أيام</p>
+                                </div>
+                                <span class="text-xs font-bold bg-medical-50 text-medical-700 px-3 py-1.5 rounded-xl">محدث لحظياً</span>
+                            </div>
+                            <div class="relative h-72 w-full">
+                                <canvas id="salesChart"></canvas>
+                            </div>
+                        </div>
+
+                        <!-- Critical Inventory Alerts -->
+                        <div class="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-sm flex flex-col">
+                            <div class="flex items-center justify-between mb-4">
+                                <h3 class="text-base font-extrabold text-navy-900 flex items-center gap-2">
+                                    <i class="fa-solid fa-bell text-amber-500"></i>
+                                    <span>تنبيهات المخزون العاجلة</span>
+                                </h3>
+                                <span id="dashboard-alert-pill" class="text-xs font-bold bg-rose-100 text-rose-700 px-2.5 py-0.5 rounded-full">0</span>
+                            </div>
+                            <div id="dashboard-alerts-list" class="flex-1 space-y-2.5 overflow-y-auto max-h-72 pr-1">
+                                <!-- Populated via JS -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Recent Invoices Table -->
+                    <div class="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
+                        <div class="p-5 border-b border-slate-100 flex items-center justify-between">
+                            <div>
+                                <h3 class="text-base font-extrabold text-navy-900">أحدث فواتير المبيعات</h3>
+                                <p class="text-xs text-slate-500">آخر المعاملات المسجلة على نقطة البيع</p>
+                            </div>
+                            <button onclick="switchTab('accounting')" class="text-xs font-bold text-medical-600 hover:text-medical-700 bg-medical-50 px-3.5 py-2 rounded-xl">
+                                سجل الفواتير الكامل
+                            </button>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-right border-collapse">
+                                <thead>
+                                    <tr class="bg-slate-50 text-slate-500 text-xs font-bold border-b border-slate-200">
+                                        <th class="py-3.5 px-4">رقم الفاتورة</th>
+                                        <th class="py-3.5 px-4">التاريخ والوقت</th>
+                                        <th class="py-3.5 px-4">عدد الأصناف</th>
+                                        <th class="py-3.5 px-4">الخصم</th>
+                                        <th class="py-3.5 px-4">الإجمالي</th>
+                                        <th class="py-3.5 px-4">الربح</th>
+                                        <th class="py-3.5 px-4 text-center">الإجراء</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="dashboard-recent-sales" class="divide-y divide-slate-100 text-sm">
+                                    <!-- Populated via JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ==================== 2. POS (CASHIER) VIEW ==================== -->
+                <section id="view-pos" class="view-section hidden fade-in">
+                    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                        <!-- Left/Right Side: Search & Medicine Grid (7 cols) -->
+                        <div class="lg:col-span-7 space-y-4">
+                            <!-- Search & Barcode Bar -->
+                            <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-3">
+                                <div class="relative">
+                                    <i class="fa-solid fa-barcode absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 text-lg"></i>
+                                    <input type="text" id="pos-search-input" oninput="renderPosCatalog()" onkeydown="handlePosBarcodeEnter(event)"
+                                        placeholder="ابحث بالاسم التجاري، المادة الفعالة، أو امسح الباركود ثم اضغط Enter..."
+                                        class="w-full pr-12 pl-4 py-3.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-medical-500 focus:bg-white transition">
+                                </div>
+                                <div class="flex flex-wrap items-center gap-2 text-xs">
+                                    <span class="text-slate-500 font-bold">تصنيف سريع:</span>
+                                    <button onclick="filterPosCategory('all')" class="pos-cat-btn px-3 py-1.5 rounded-lg bg-navy-900 text-white font-bold">الكل</button>
+                                    <button onclick="filterPosCategory('مسكنات')" class="pos-cat-btn px-3 py-1.5 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 font-semibold">مسكنات</button>
+                                    <button onclick="filterPosCategory('مضادات حيوية')" class="pos-cat-btn px-3 py-1.5 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 font-semibold">مضادات حيوية</button>
+                                    <button onclick="filterPosCategory('مزمنة')" class="pos-cat-btn px-3 py-1.5 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 font-semibold">أدوية مزمنة</button>
+                                    <button onclick="filterPosCategory('فيتامينات')" class="pos-cat-btn px-3 py-1.5 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 font-semibold">فيتامينات</button>
+                                </div>
+                            </div>
+
+                            <!-- Medicines Catalog Grid -->
+                            <div id="pos-catalog-grid" class="grid grid-cols-1 sm:grid-cols-2 gap-3.5 max-h-[calc(100vh-250px)] overflow-y-auto pr-1">
+                                <!-- Populated via JS -->
+                            </div>
+                        </div>
+
+                        <!-- Cart & Checkout Panel (5 cols) -->
+                        <div class="lg:col-span-5 bg-white rounded-2xl border border-slate-200 shadow-md flex flex-col sticky top-4">
+                            <div class="p-4 bg-navy-900 text-white rounded-t-2xl flex items-center justify-between">
+                                <div class="flex items-center gap-2.5">
+                                    <i class="fa-solid fa-cart-shopping text-medical-400"></i>
+                                    <h3 class="font-extrabold text-base">فاتورة البيع الحالية</h3>
+                                </div>
+                                <button onclick="clearPosCart()" class="text-xs bg-rose-500/20 hover:bg-rose-500 text-rose-200 hover:text-white px-2.5 py-1.5 rounded-lg font-bold transition">
+                                    <i class="fa-solid fa-trash-can ml-1"></i> إفراغ
+                                </button>
+                            </div>
+
+                            <!-- Customer Optional Info -->
+                            <div class="px-4 py-2.5 bg-slate-50 border-b border-slate-200 flex items-center gap-2">
+                                <i class="fa-solid fa-user text-slate-400 text-xs"></i>
+                                <input type="text" id="pos-customer-name" placeholder="اسم العميل (اختياري - نقدي)" class="w-full bg-transparent text-xs font-semibold focus:outline-none">
+                            </div>
+
+                            <!-- Cart Items List -->
+                            <div id="pos-cart-items" class="p-4 space-y-3 max-h-80 overflow-y-auto divide-y divide-slate-100">
+                                <!-- Populated via JS -->
+                            </div>
+
+                            <!-- Calculations & Checkout -->
+                            <div class="p-4 bg-slate-50 border-t border-slate-200 rounded-b-2xl space-y-3">
+                                <!-- Discount & Tax Controls -->
+                                <div class="grid grid-cols-2 gap-2.5">
+                                    <div>
+                                        <label class="block text-[11px] font-bold text-slate-500 mb-1">الخصم</label>
+                                        <div class="flex rounded-xl overflow-hidden border border-slate-300 bg-white">
+                                            <input type="number" id="pos-discount-val" value="0" min="0" oninput="recalculatePosTotals()" class="w-full px-2.5 py-1.5 text-sm font-bold focus:outline-none">
+                                            <select id="pos-discount-type" onchange="recalculatePosTotals()" class="bg-slate-100 px-2 text-xs font-bold border-r border-slate-300 focus:outline-none">
+                                                <option value="amount">ج.م</option>
+                                                <option value="percent">%</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label class="block text-[11px] font-bold text-slate-500 mb-1">ضريبة القيمة المضافة (%)</label>
+                                        <input type="number" id="pos-tax-percent" value="0" min="0" max="100" oninput="recalculatePosTotals()" class="w-full px-3 py-1.5 rounded-xl border border-slate-300 bg-white text-sm font-bold focus:outline-none">
+                                    </div>
+                                </div>
+
+                                <!-- Totals Summary -->
+                                <div class="bg-white p-3 rounded-xl border border-slate-200 space-y-1.5 text-xs">
+                                    <div class="flex justify-between text-slate-500">
+                                        <span>المجموع الفرعي:</span>
+                                        <span id="pos-subtotal" class="font-bold text-slate-700">0.00 ج.م</span>
+                                    </div>
+                                    <div class="flex justify-between text-rose-600">
+                                        <span>قيمة الخصم:</span>
+                                        <span id="pos-discount-display" class="font-bold">- 0.00 ج.م</span>
+                                    </div>
+                                    <div class="flex justify-between text-slate-500">
+                                        <span>الضريبة:</span>
+                                        <span id="pos-tax-display" class="font-bold">+ 0.00 ج.م</span>
+                                    </div>
+                                    <div class="pt-2 border-t border-slate-100 flex justify-between items-center text-base font-extrabold text-navy-900">
+                                        <span>الإجمالي المستحق:</span>
+                                        <span id="pos-grand-total" class="text-xl text-medical-600">0.00 ج.م</span>
+                                    </div>
+                                </div>
+
+                                <!-- Paid & Change -->
+                                <div class="grid grid-cols-2 gap-2.5 items-center">
+                                    <div>
+                                        <label class="block text-[11px] font-bold text-slate-600 mb-1">المبلغ المدفوع من العميل</label>
+                                        <input type="number" id="pos-paid-amount" placeholder="0.00" oninput="calculateChange()" class="w-full px-3 py-2 rounded-xl border border-medical-300 bg-white text-sm font-extrabold text-navy-900 focus:ring-2 focus:ring-medical-500 focus:outline-none">
+                                    </div>
+                                    <div class="bg-navy-900 text-white p-2.5 rounded-xl text-center">
+                                        <span class="block text-[10px] text-slate-300">المتبقي للعميل (الباقي)</span>
+                                        <span id="pos-change-amount" class="text-base font-extrabold text-medical-400">0.00 ج.م</span>
+                                    </div>
+                                </div>
+
+                                <!-- Checkout Button -->
+                                <button onclick="completeSale()" class="w-full py-3.5 px-4 bg-gradient-to-l from-medical-600 to-medical-500 hover:from-medical-700 hover:to-medical-600 text-white rounded-xl font-extrabold text-base shadow-lg shadow-medical-600/30 flex items-center justify-center gap-2 transition active:scale-[0.99]">
+                                    <i class="fa-solid fa-print"></i>
+                                    <span>إتمام البيع وطباعة الفاتورة</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ==================== 3. INVENTORY VIEW ==================== -->
+                <section id="view-inventory" class="view-section hidden fade-in space-y-5">
+                    <!-- Top Action Bar -->
+                    <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div class="flex flex-1 flex-wrap items-center gap-3">
+                            <div class="relative flex-1 min-w-[240px]">
+                                <i class="fa-solid fa-magnifying-glass absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                                <input type="text" id="inv-search" oninput="renderInventoryTable()" placeholder="بحث بالاسم، المادة الفعالة، الباركود، أو الشركة..." class="w-full pr-10 pl-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-medical-500">
+                            </div>
+                            <select id="inv-status-filter" onchange="renderInventoryTable()" class="px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 focus:outline-none">
+                                <option value="all">جميع الحالات</option>
+                                <option value="ok">متوفر بكمية جيدة</option>
+                                <option value="low">أوشك على النفاذ (نواقص)</option>
+                                <option value="expiring">قارب على الانتهاء / منتهي</option>
+                            </select>
+                        </div>
+
+                        <div class="flex items-center gap-2.5">
+                            <button onclick="openMedicineModal()" class="flex items-center gap-2 bg-navy-900 hover:bg-navy-800 text-white px-4 py-2.5 rounded-xl text-sm font-bold shadow-sm transition">
+                                <i class="fa-solid fa-plus text-medical-400"></i>
+                                <span>إضافة دواء جديد</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Inventory Table -->
+                    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-right border-collapse">
+                                <thead>
+                                    <tr class="bg-slate-50 text-slate-600 text-xs font-extrabold border-b border-slate-200">
+                                        <th class="py-3.5 px-4">الدواء والباركود</th>
+                                        <th class="py-3.5 px-4">المادة الفعالة والشركة</th>
+                                        <th class="py-3.5 px-4">سعر الشراء</th>
+                                        <th class="py-3.5 px-4">سعر البيع (علبة/شريط)</th>
+                                        <th class="py-3.5 px-4">الرصيد المتوفر</th>
+                                        <th class="py-3.5 px-4">التشغيلة والصلاحية</th>
+                                        <th class="py-3.5 px-4">الحالة</th>
+                                        <th class="py-3.5 px-4 text-center">إجراءات</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="inventory-table-body" class="divide-y divide-slate-100 text-sm">
+                                    <!-- Populated via JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ==================== 4. SUPPLIERS & PURCHASES VIEW ==================== -->
+                <section id="view-suppliers" class="view-section hidden fade-in space-y-6">
+                    <div class="flex flex-wrap items-center justify-between gap-4">
+                        <div>
+                            <h3 class="text-lg font-extrabold text-navy-900">إدارة الموردين وفواتير الشراء</h3>
+                            <p class="text-xs text-slate-500">متابعة شركات الأدوية، المديونيات، وتسجيل طلبيات التوريد</p>
+                        </div>
+                        <div class="flex flex-wrap gap-2.5">
+                            <button onclick="openSupplierModal()" class="px-4 py-2.5 rounded-xl bg-white border border-slate-300 hover:bg-slate-50 text-navy-900 text-sm font-bold flex items-center gap-2 shadow-sm">
+                                <i class="fa-solid fa-building-user text-medical-600"></i>
+                                <span>إضافة مورد جديد</span>
+                            </button>
+                            <button onclick="openPurchaseModal()" class="px-4 py-2.5 rounded-xl bg-medical-600 hover:bg-medical-700 text-white text-sm font-bold flex items-center gap-2 shadow-sm">
+                                <i class="fa-solid fa-file-circle-plus"></i>
+                                <span>تسجيل فاتورة مشتريات</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Suppliers Grid -->
+                    <div id="suppliers-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        <!-- Populated via JS -->
+                    </div>
+
+                    <!-- Purchase Invoices History -->
+                    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                        <div class="p-4 border-b border-slate-100">
+                            <h4 class="font-extrabold text-navy-900 text-base">سجل فواتير المشتريات من الموردين</h4>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-right border-collapse">
+                                <thead>
+                                    <tr class="bg-slate-50 text-slate-600 text-xs font-bold border-b border-slate-200">
+                                        <th class="py-3 px-4">رقم الفاتورة</th>
+                                        <th class="py-3 px-4">المورد</th>
+                                        <th class="py-3 px-4">التاريخ</th>
+                                        <th class="py-3 px-4">الأصناف الموردة</th>
+                                        <th class="py-3 px-4">إجمالي الفاتورة</th>
+                                        <th class="py-3 px-4">المدفوع</th>
+                                        <th class="py-3 px-4">المتبقي (آجل)</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="purchases-table-body" class="divide-y divide-slate-100 text-sm">
+                                    <!-- Populated via JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ==================== 5. ACCOUNTING & REPORTS VIEW ==================== -->
+                <section id="view-accounting" class="view-section hidden fade-in space-y-6">
+                    <!-- Income Statement (P&L) Summary -->
+                    <div class="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
+                        <div class="flex flex-wrap items-center justify-between gap-2 mb-5">
+                            <div>
+                                <h3 class="text-lg font-extrabold text-navy-900">قائمة الدخل (ملخص الأرباح والخسائر)</h3>
+                                <p class="text-xs text-slate-500">التحليل المحاسبي الشامل للإيرادات وتكلفة البضاعة المباعة والمصروفات التشغيلية</p>
+                            </div>
+                            <button onclick="openExpenseModal()" class="px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-sm font-bold flex items-center gap-2 shadow-sm">
+                                <i class="fa-solid fa-plus"></i>
+                                <span>تسجيل مصروف جديد</span>
+                            </button>
+                        </div>
+
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                            <div class="p-4 rounded-xl bg-slate-50 border border-slate-200">
+                                <span class="text-xs font-bold text-slate-500">1. إجمالي المبيعات (الإيرادات)</span>
+                                <p id="acc-total-revenue" class="text-xl font-extrabold text-navy-900 mt-1">0.00 ج.م</p>
+                            </div>
+                            <div class="p-4 rounded-xl bg-slate-50 border border-slate-200">
+                                <span class="text-xs font-bold text-slate-500">2. تكلفة البضاعة المباعة (COGS)</span>
+                                <p id="acc-total-cogs" class="text-xl font-extrabold text-amber-600 mt-1">0.00 ج.م</p>
+                            </div>
+                            <div class="p-4 rounded-xl bg-slate-50 border border-slate-200">
+                                <span class="text-xs font-bold text-slate-500">3. المصروفات التشغيلية</span>
+                                <p id="acc-total-expenses" class="text-xl font-extrabold text-rose-600 mt-1">0.00 ج.م</p>
+                            </div>
+                            <div class="p-4 rounded-xl bg-gradient-to-br from-navy-900 to-navy-800 text-white shadow-md">
+                                <span class="text-xs font-bold text-medical-400">4. صافي الربح الفعلي</span>
+                                <p id="acc-net-profit" class="text-2xl font-extrabold text-white mt-1">0.00 ج.م</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Two Columns: Sales History (with Return) & Expenses Log -->
+                    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                        <!-- Sales Invoices Log (7 cols) -->
+                        <div class="lg:col-span-7 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+                            <div class="p-4 border-b border-slate-100 flex flex-wrap items-center justify-between gap-2">
+                                <h4 class="font-extrabold text-navy-900 text-base">سجل فواتير المبيعات والمرتجعات</h4>
+                                <input type="text" id="sales-history-search" oninput="renderAccountingView()" placeholder="بحث برقم الفاتورة أو العميل..." class="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none">
+                            </div>
+                            <div class="overflow-x-auto max-h-[420px]">
+                                <table class="w-full text-right border-collapse">
+                                    <thead>
+                                        <tr class="bg-slate-50 text-slate-600 text-xs font-bold border-b border-slate-200 sticky top-0">
+                                            <th class="py-3 px-3">رقم الفاتورة</th>
+                                            <th class="py-3 px-3">العميل / التاريخ</th>
+                                            <th class="py-3 px-3">الإجمالي</th>
+                                            <th class="py-3 px-3">الحالة</th>
+                                            <th class="py-3 px-3 text-center">إجراءات</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="all-sales-table-body" class="divide-y divide-slate-100 text-xs">
+                                        <!-- Populated via JS -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Expenses Log (5 cols) -->
+                        <div class="lg:col-span-5 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+                            <div class="p-4 border-b border-slate-100 flex items-center justify-between">
+                                <h4 class="font-extrabold text-navy-900 text-base">سجل المصروفات التشغيلية</h4>
+                                <span class="text-xs text-slate-400">رواتب، كهرباء، إيجار...</span>
+                            </div>
+                            <div class="overflow-x-auto max-h-[420px]">
+                                <table class="w-full text-right border-collapse">
+                                    <thead>
+                                        <tr class="bg-slate-50 text-slate-600 text-xs font-bold border-b border-slate-200 sticky top-0">
+                                            <th class="py-3 px-3">البند</th>
+                                            <th class="py-3 px-3">التصنيف</th>
+                                            <th class="py-3 px-3">التاريخ</th>
+                                            <th class="py-3 px-3">المبلغ</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="expenses-table-body" class="divide-y divide-slate-100 text-xs">
+                                        <!-- Populated via JS -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+            </main>
+        </div>
+    </div>
+
+    <!-- ==================== MODALS ==================== -->
+
+    <!-- 1. Thermal Receipt Preview Modal -->
+    <div id="receipt-modal" class="fixed inset-0 bg-slate-900/70 z-50 hidden items-center justify-center p-4 backdrop-blur-sm">
+        <div class="bg-white rounded-2xl max-w-md w-full overflow-hidden shadow-2xl">
+            <div class="p-4 bg-navy-900 text-white flex items-center justify-between no-print">
+                <h3 class="font-bold text-sm flex items-center gap-2">
+                    <i class="fa-solid fa-receipt text-medical-400"></i>
+                    <span>معاينة الإيصال الحراري (Thermal Receipt)</span>
+                </h3>
+                <button onclick="closeModal('receipt-modal')" class="text-slate-400 hover:text-white">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+            
+            <!-- Printable Area -->
+            <div class="p-6 bg-slate-100 flex justify-center max-h-[70vh] overflow-y-auto">
+                <div id="printable-receipt" class="bg-white w-[80mm] p-5 shadow-md text-slate-900 font-mono text-xs border border-slate-200">
+                    <!-- Populated dynamically -->
+                </div>
+            </div>
+
+            <div class="p-4 bg-white border-t border-slate-200 flex gap-3 no-print">
+                <button onclick="window.print()" class="flex-1 py-2.5 bg-medical-600 hover:bg-medical-700 text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-print"></i>
+                    <span>طباعة الإيصال</span>
+                </button>
+                <button onclick="closeModal('receipt-modal')" class="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-sm">
+                    إغلاق
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2. Add/Edit Medicine Modal -->
+    <div id="medicine-modal" class="fixed inset-0 bg-slate-900/70 z-50 hidden items-center justify-center p-4 backdrop-blur-sm">
+        <div class="bg-white rounded-2xl max-w-2xl w-full overflow-hidden shadow-2xl">
+            <div class="p-5 bg-navy-900 text-white flex items-center justify-between">
+                <h3 id="medicine-modal-title" class="font-extrabold text-base">إضافة دواء جديد للمخزون</h3>
+                <button onclick="closeModal('medicine-modal')" class="text-slate-400 hover:text-white">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+            <form id="medicine-form" onsubmit="saveMedicine(event)" class="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+                <input type="hidden" id="med-id">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">الاسم التجاري للدواء *</label>
+                        <input type="text" id="med-name" required placeholder="مثال: Panadol Extra 500mg" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm font-semibold focus:ring-2 focus:ring-medical-500 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">الباركود (Barcode) *</label>
+                        <input type="text" id="med-barcode" required placeholder="مثال: 6221001001" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm font-semibold focus:ring-2 focus:ring-medical-500 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">المادة الفعالة *</label>
+                        <input type="text" id="med-active" required placeholder="مثال: Paracetamol + Caffeine" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm font-semibold focus:ring-2 focus:ring-medical-500 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">الشركة المنتجة *</label>
+                        <input type="text" id="med-company" required placeholder="مثال: GSK" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm font-semibold focus:ring-2 focus:ring-medical-500 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">التصنيف العلاجي</label>
+                        <select id="med-category" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm font-semibold focus:outline-none">
+                            <option value="مسكنات">مسكنات وخافض حرارة</option>
+                            <option value="مضادات حيوية">مضادات حيوية</option>
+                            <option value="مزمنة">أدوية الأمراض المزمنة</option>
+                            <option value="فيتامينات">فيتامينات ومكملات</option>
+                            <option value="جهاز هضمي">الجهاز الهضمي</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">عدد الشرائط داخل العلبة *</label>
+                        <input type="number" id="med-strips-per-box" required min="1" value="2" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm font-semibold focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">سعر الشراء للعلبة (ج.م) *</label>
+                        <input type="number" step="0.01" id="med-buy-price" required min="0" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm font-semibold focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">سعر البيع للجمهور - علبة (ج.م) *</label>
+                        <input type="number" step="0.01" id="med-sell-price" required min="0" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm font-semibold focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">الكمية المتوفرة (بالشريط) *</label>
+                        <input type="number" id="med-stock-strips" required min="0" placeholder="إجمالي عدد الشرائط" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm font-semibold focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">حد التنبيه للنواقص (بالعلبة)</label>
+                        <input type="number" id="med-min-boxes" required min="1" value="5" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm font-semibold focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">رقم التشغيلة (Batch No) *</label>
+                        <input type="text" id="med-batch" required placeholder="B-2026-88" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm font-semibold focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">تاريخ انتهاء الصلاحية *</label>
+                        <input type="date" id="med-expiry" required class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm font-semibold focus:outline-none">
+                    </div>
+                </div>
+                <div class="pt-4 border-t border-slate-100 flex justify-end gap-3">
+                    <button type="button" onclick="closeModal('medicine-modal')" class="px-5 py-2.5 rounded-xl bg-slate-100 text-slate-700 font-bold text-sm">إلغاء</button>
+                    <button type="submit" class="px-6 py-2.5 rounded-xl bg-medical-600 hover:bg-medical-700 text-white font-bold text-sm shadow-md">حفظ بيانات الدواء</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 3. Add Supplier Modal -->
+    <div id="supplier-modal" class="fixed inset-0 bg-slate-900/70 z-50 hidden items-center justify-center p-4 backdrop-blur-sm">
+        <div class="bg-white rounded-2xl max-w-md w-full overflow-hidden shadow-2xl">
+            <div class="p-5 bg-navy-900 text-white flex items-center justify-between">
+                <h3 class="font-extrabold text-base">إضافة مورد / مخزن أدوية جديد</h3>
+                <button onclick="closeModal('supplier-modal')" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <form onsubmit="saveSupplier(event)" class="p-6 space-y-4">
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">اسم الشركة / المخزن *</label>
+                    <input type="text" id="sup-name" required placeholder="مثال: المتحدة للصيادلة" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm font-semibold focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">رقم الهاتف *</label>
+                    <input type="text" id="sup-phone" required placeholder="01000000000" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm font-semibold focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">الرصيد الافتتاحي المستحق للمورد (ج.م)</label>
+                    <input type="number" step="0.01" id="sup-balance" value="0" min="0" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm font-semibold focus:outline-none">
+                </div>
+                <div class="pt-3 flex justify-end gap-2">
+                    <button type="button" onclick="closeModal('supplier-modal')" class="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 text-sm font-bold">إلغاء</button>
+                    <button type="submit" class="px-5 py-2 rounded-xl bg-medical-600 text-white text-sm font-bold">حفظ المورد</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 4. Record Purchase Invoice Modal -->
+    <div id="purchase-modal" class="fixed inset-0 bg-slate-900/70 z-50 hidden items-center justify-center p-4 backdrop-blur-sm">
+        <div class="bg-white rounded-2xl max-w-lg w-full overflow-hidden shadow-2xl">
+            <div class="p-5 bg-navy-900 text-white flex items-center justify-between">
+                <h3 class="font-extrabold text-base">تسجيل فاتورة مشتريات وتوريد للمخزون</h3>
+                <button onclick="closeModal('purchase-modal')" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <form onsubmit="savePurchaseInvoice(event)" class="p-6 space-y-4">
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">اختر المورد *</label>
+                    <select id="pur-supplier-id" required class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm font-bold focus:outline-none"></select>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">اختر الدواء المورد *</label>
+                    <select id="pur-medicine-id" onchange="autoFillPurchasePrice()" required class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm font-bold focus:outline-none"></select>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">الكمية المشتراة (بالعلبة) *</label>
+                        <input type="number" id="pur-boxes" required min="1" value="10" oninput="calcPurchaseTotal()" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm font-bold focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">سعر شراء العلبة (ج.م) *</label>
+                        <input type="number" step="0.01" id="pur-unit-cost" required min="0" oninput="calcPurchaseTotal()" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm font-bold focus:outline-none">
+                    </div>
+                </div>
+                <div class="p-3 bg-slate-50 rounded-xl border border-slate-200 flex justify-between items-center">
+                    <span class="text-xs font-bold text-slate-600">إجمالي قيمة الفاتورة:</span>
+                    <span id="pur-total-display" class="text-lg font-extrabold text-navy-900">0.00 ج.م</span>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">المبلغ المدفوع نقداً للمورد (ج.م) *</label>
+                    <input type="number" step="0.01" id="pur-paid" required min="0" value="0" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm font-bold focus:outline-none">
+                    <p class="text-[11px] text-slate-400 mt-1">سيتم إضافة أي مبلغ متبقي تلقائياً إلى مديونية المورد.</p>
+                </div>
+                <div class="pt-3 flex justify-end gap-2">
+                    <button type="button" onclick="closeModal('purchase-modal')" class="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 text-sm font-bold">إلغاء</button>
+                    <button type="submit" class="px-5 py-2.5 rounded-xl bg-medical-600 text-white text-sm font-bold">تأكيد التوريد وتحديث المخزون</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 5. Pay Supplier Debt Modal -->
+    <div id="pay-supplier-modal" class="fixed inset-0 bg-slate-900/70 z-50 hidden items-center justify-center p-4 backdrop-blur-sm">
+        <div class="bg-white rounded-2xl max-w-md w-full overflow-hidden shadow-2xl">
+            <div class="p-5 bg-navy-900 text-white flex items-center justify-between">
+                <h3 class="font-extrabold text-base">سداد دفعة نقدية لمورد</h3>
+                <button onclick="closeModal('pay-supplier-modal')" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <form onsubmit="submitSupplierPayment(event)" class="p-6 space-y-4">
+                <input type="hidden" id="pay-sup-id">
+                <div class="p-3 bg-amber-50 border border-amber-200 rounded-xl">
+                    <p class="text-xs text-amber-800 font-bold">المورد: <span id="pay-sup-name"></span></p>
+                    <p class="text-sm text-amber-900 font-extrabold mt-1">المديونية الحالية: <span id="pay-sup-current"></span></p>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">المبلغ المراد سداده (ج.م) *</label>
+                    <input type="number" step="0.01" id="pay-sup-amount" required min="1" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm font-extrabold focus:outline-none">
+                </div>
+                <div class="pt-3 flex justify-end gap-2">
+                    <button type="button" onclick="closeModal('pay-supplier-modal')" class="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 text-sm font-bold">إلغاء</button>
+                    <button type="submit" class="px-5 py-2 rounded-xl bg-medical-600 text-white text-sm font-bold">تأكيد السداد</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 6. Add Expense Modal -->
+    <div id="expense-modal" class="fixed inset-0 bg-slate-900/70 z-50 hidden items-center justify-center p-4 backdrop-blur-sm">
+        <div class="bg-white rounded-2xl max-w-md w-full overflow-hidden shadow-2xl">
+            <div class="p-5 bg-navy-900 text-white flex items-center justify-between">
+                <h3 class="font-extrabold text-base">تسجيل مصروف تشغيلي جديد</h3>
+                <button onclick="closeModal('expense-modal')" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <form onsubmit="saveExpense(event)" class="p-6 space-y-4">
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">بيان المصروف *</label>
+                    <input type="text" id="exp-title" required placeholder="مثال: فاتورة كهرباء شهر نوفمبر" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm font-semibold focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">التصنيف *</label>
+                    <select id="exp-category" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm font-semibold focus:outline-none">
+                        <option value="رواتب وأجور">رواتب وأجور</option>
+                        <option value="كهرباء ومياه">كهرباء ومياه وإنترنت</option>
+                        <option value="إيجار">إيجار الصيدلية</option>
+                        <option value="نثريات ومستلزمات">نثريات وأكياس ومطبوعات</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">المبلغ (ج.م) *</label>
+                    <input type="number" step="0.01" id="exp-amount" required min="1" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm font-extrabold focus:outline-none">
+                </div>
+                <div class="pt-3 flex justify-end gap-2">
+                    <button type="button" onclick="closeModal('expense-modal')" class="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 text-sm font-bold">إلغاء</button>
+                    <button type="submit" class="px-5 py-2 rounded-xl bg-rose-600 text-white text-sm font-bold">حفظ المصروف</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Custom Confirmation Modal -->
+    <div id="confirm-modal" class="fixed inset-0 bg-slate-900/70 z-50 hidden items-center justify-center p-4 backdrop-blur-sm">
+        <div class="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl text-center space-y-4">
+            <div class="w-12 h-12 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto text-xl">
+                <i class="fa-solid fa-triangle-exclamation"></i>
+            </div>
+            <h3 id="confirm-title" class="text-base font-extrabold text-navy-900">تأكيد الإجراء</h3>
+            <p id="confirm-message" class="text-xs text-slate-600 leading-relaxed"></p>
+            <div class="flex gap-3 pt-2">
+                <button id="confirm-yes-btn" class="flex-1 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-sm font-bold">نعم، متابعة</button>
+                <button onclick="closeModal('confirm-modal')" class="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-sm font-bold">إلغاء</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== JAVASCRIPT APPLICATION LOGIC ==================== -->
+    <script>
+        // --- 1. STATE & STORAGE MANAGEMENT ---
+        const STORAGE_KEY = 'pharmacy_erp_v1_data';
+        let appState = {
+            medicines: [],
+            sales: [],
+            suppliers: [],
+            purchases: [],
+            expenses: []
+        };
+
+        let posCart = [];
+        let activePosCategory = 'all';
+        let salesChartInstance = null;
+
+        // Helper: Format Currency
+        function formatMoney(amount) {
+            return Number(amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ج.م';
+        }
+
+        // Helper: Get Today's ISO Date (YYYY-MM-DD)
+        function getTodayStr(offsetDays = 0) {
+            const d = new Date();
+            d.setDate(d.getDate() + offsetDays);
+            return d.toISOString().split('T')[0];
+        }
+
+        // Initialize Realistic Default Data
+        function getDefaultSeedData() {
+            const today = getTodayStr(0);
+            const yesterday = getTodayStr(-1);
+            const twoDaysAgo = getTodayStr(-2);
+
+            return {
+                medicines: [
+                    {
+                        id: 'MED-101',
+                        name: 'Panadol Extra 500mg',
+                        barcode: '6221001001',
+                        activeIngredient: 'Paracetamol + Caffeine',
+                        company: 'GSK',
+                        category: 'مسكنات',
+                        stripsPerBox: 2,
+                        buyPriceBox: 36.00,
+                        sellPriceBox: 48.00,
+                        stockStrips: 44, // 22 boxes
+                        minBoxes: 5,
+                        batch: 'B-2026-11',
+                        expiryDate: '2027-08-15'
+                    },
+                    {
+                        id: 'MED-102',
+                        name: 'Augmentin 1g Tablets',
+                        barcode: '6221001002',
+                        activeIngredient: 'Amoxicillin + Clavulanic Acid',
+                        company: 'GSK',
+                        category: 'مضادات حيوية',
+                        stripsPerBox: 2,
+                        buyPriceBox: 98.00,
+                        sellPriceBox: 126.00,
+                        stockStrips: 6, // 3 boxes (LOW STOCK)
+                        minBoxes: 5,
+                        batch: 'AUG-904',
+                        expiryDate: '2027-03-20'
+                    },
+                    {
+                        id: 'MED-103',
+                        name: 'Cataflam 50mg',
+                        barcode: '6221001003',
+                        activeIngredient: 'Diclofenac Potassium',
+                        company: 'Novartis',
+                        category: 'مسكنات',
+                        stripsPerBox: 2,
+                        buyPriceBox: 42.00,
+                        sellPriceBox: 56.00,
+                        stockStrips: 30, // 15 boxes
+                        minBoxes: 4,
+                        batch: 'NV-441',
+                        expiryDate: '2027-11-01'
+                    },
+                    {
+                        id: 'MED-104',
+                        name: 'Concor 5mg',
+                        barcode: '6221001004',
+                        activeIngredient: 'Bisoprolol Fumarate',
+                        company: 'Merck',
+                        category: 'مزمنة',
+                        stripsPerBox: 3,
+                        buyPriceBox: 54.00,
+                        sellPriceBox: 72.00,
+                        stockStrips: 36, // 12 boxes
+                        minBoxes: 5,
+                        batch: 'MK-772',
+                        expiryDate: '2028-01-10'
+                    },
+                    {
+                        id: 'MED-105',
+                        name: 'Omega 3 Plus Capsules',
+                        barcode: '6221001005',
+                        activeIngredient: 'Fish Oil + Wheat Germ Oil',
+                        company: 'SEDICO',
+                        category: 'فيتامينات',
+                        stripsPerBox: 2,
+                        buyPriceBox: 65.00,
+                        sellPriceBox: 85.00,
+                        stockStrips: 24, // 12 boxes
+                        minBoxes: 4,
+                        batch: 'SD-310',
+                        expiryDate: '2026-12-10' // EXPIRING SOON
+                    },
+                    {
+                        id: 'MED-106',
+                        name: 'Controloc 40mg',
+                        barcode: '6221001006',
+                        activeIngredient: 'Pantoprazole',
+                        company: 'Takeda',
+                        category: 'جهاز هضمي',
+                        stripsPerBox: 2,
+                        buyPriceBox: 110.00,
+                        sellPriceBox: 140.00,
+                        stockStrips: 4, // 2 boxes (LOW STOCK)
+                        minBoxes: 5,
+                        batch: 'TK-819',
+                        expiryDate: '2027-06-30'
+                    },
+                    {
+                        id: 'MED-107',
+                        name: 'Limitless C Zinc',
+                        barcode: '6221001007',
+                        activeIngredient: 'Vitamin C + Zinc',
+                        company: 'Eva Pharma',
+                        category: 'فيتامينات',
+                        stripsPerBox: 2,
+                        buyPriceBox: 55.00,
+                        sellPriceBox: 75.00,
+                        stockStrips: 40,
+                        minBoxes: 5,
+                        batch: 'EV-550',
+                        expiryDate: '2027-09-12'
+                    }
+                ],
+                suppliers: [
+                    { id: 'SUP-1', name: 'الشركة المتحدة للصيادلة', phone: '01012345678', balance: 4500.00 },
+                    { id: 'SUP-2', name: 'مخازن ابن سينا فارما', phone: '01198765432', balance: 2800.00 },
+                    { id: 'SUP-3', name: 'فارما أوفرسيز للتوزيع', phone: '01234567890', balance: 0.00 }
+                ],
+                sales: [
+                    {
+                        id: 'INV-1001',
+                        date: today,
+                        time: '10:15 ص',
+                        customer: 'عميل نقدي',
+                        items: [
+                            { medId: 'MED-101', name: 'Panadol Extra 500mg', unit: 'box', qty: 2, unitPrice: 48, unitCost: 36, stripsCount: 4 },
+                            { medId: 'MED-105', name: 'Omega 3 Plus Capsules', unit: 'box', qty: 1, unitPrice: 85, unitCost: 65, stripsCount: 2 }
+                        ],
+                        subtotal: 181.00,
+                        discount: 0,
+                        tax: 0,
+                        total: 181.00,
+                        totalCost: 137.00,
+                        profit: 44.00,
+                        paid: 200.00,
+                        change: 19.00,
+                        status: 'completed'
+                    },
+                    {
+                        id: 'INV-1002',
+                        date: today,
+                        time: '11:40 ص',
+                        customer: 'أ. محمود سالم',
+                        items: [
+                            { medId: 'MED-104', name: 'Concor 5mg', unit: 'box', qty: 1, unitPrice: 72, unitCost: 54, stripsCount: 3 },
+                            { medId: 'MED-103', name: 'Cataflam 50mg', unit: 'strip', qty: 1, unitPrice: 28, unitCost: 21, stripsCount: 1 }
+                        ],
+                        subtotal: 100.00,
+                        discount: 5.00,
+                        tax: 0,
+                        total: 95.00,
+                        totalCost: 75.00,
+                        profit: 20.00,
+                        paid: 100.00,
+                        change: 5.00,
+                        status: 'completed'
+                    },
+                    {
+                        id: 'INV-1000',
+                        date: yesterday,
+                        time: '06:20 م',
+                        customer: 'عميل نقدي',
+                        items: [
+                            { medId: 'MED-102', name: 'Augmentin 1g Tablets', unit: 'box', qty: 2, unitPrice: 126, unitCost: 98, stripsCount: 4 }
+                        ],
+                        subtotal: 252.00,
+                        discount: 0,
+                        tax: 0,
+                        total: 252.00,
+                        totalCost: 196.00,
+                        profit: 56.00,
+                        paid: 252.00,
+                        change: 0,
+                        status: 'completed'
+                    },
+                    {
+                        id: 'INV-999',
+                        date: twoDaysAgo,
+                        time: '04:10 م',
+                        customer: 'سارة علي',
+                        items: [
+                            { medId: 'MED-106', name: 'Controloc 40mg', unit: 'box', qty: 2, unitPrice: 140, unitCost: 110, stripsCount: 4 }
+                        ],
+                        subtotal: 280.00,
+                        discount: 10.00,
+                        tax: 0,
+                        total: 270.00,
+                        totalCost: 220.00,
+                        profit: 50.00,
+                        paid: 300.00,
+                        change: 30.00,
+                        status: 'completed'
+                    }
+                ],
+                purchases: [
+                    {
+                        id: 'PUR-501',
+                        supplierId: 'SUP-1',
+                        supplierName: 'الشركة المتحدة للصيادلة',
+                        date: twoDaysAgo,
+                        medName: 'Panadol Extra 500mg',
+                        boxes: 20,
+                        unitCost: 36.00,
+                        total: 720.00,
+                        paid: 500.00,
+                        remaining: 220.00
+                    }
+                ],
+                expenses: [
+                    { id: 'EXP-1', title: 'فاتورة كهرباء وإنترنت الصيدلية', category: 'كهرباء ومياه', date: yesterday, amount: 45.00 },
+                    { id: 'EXP-2', title: 'أكياس تغليف ومطبوعات حرارية', category: 'نثريات ومستلزمات', date: today, amount: 25.00 }
+                ]
+            };
+        }
+
+        function loadState() {
+            try {
+                const raw = localStorage.getItem(STORAGE_KEY);
+                if (raw) {
+                    appState = JSON.parse(raw);
+                } else {
+                    appState = getDefaultSeedData();
+                    saveState();
+                }
+            } catch (e) {
+                console.error('Error loading state:', e);
+                appState = getDefaultSeedData();
+            }
+        }
+
+        function saveState() {
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(appState));
+                updateSidebarAlerts();
+            } catch (e) {
+                showToast('حدث خطأ أثناء حفظ البيانات محلياً', 'error');
+            }
+        }
+
+        // --- 2. UI NAVIGATION & NOTIFICATIONS ---
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const backdrop = document.getElementById('sidebar-backdrop');
+            sidebar.classList.toggle('translate-x-full');
+            backdrop.classList.toggle('hidden');
+        }
+
+        function switchTab(tabName) {
+            // Update active nav styling
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                btn.classList.remove('bg-medical-600', 'text-white', 'shadow-md', 'shadow-medical-600/20');
+                btn.classList.add('text-slate-300', 'hover:bg-navy-800', 'hover:text-white');
+            });
+            const activeBtn = document.getElementById(`nav-${tabName}`);
+            if (activeBtn) {
+                activeBtn.classList.remove('text-slate-300', 'hover:bg-navy-800', 'hover:text-white');
+                activeBtn.classList.add('bg-medical-600', 'text-white', 'shadow-md', 'shadow-medical-600/20');
+            }
+
+            // Hide all sections & show selected
+            document.querySelectorAll('.view-section').forEach(sec => sec.classList.add('hidden'));
+            document.getElementById(`view-${tabName}`).classList.remove('hidden');
+
+            // Update Header Title
+            const titles = {
+                dashboard: 'لوحة القيادة والملخص العام',
+                pos: 'نقطة البيع السريعة (الكاشير)',
+                inventory: 'إدارة المخزون والأدوية',
+                suppliers: 'الموردون وفواتير المشتريات',
+                accounting: 'المصروفات والتقارير المالية'
+            };
+            document.getElementById('page-title').textContent = titles[tabName] || '';
+
+            // Close mobile sidebar if open
+            const sidebar = document.getElementById('sidebar');
+            if (!sidebar.classList.contains('translate-x-full') && window.innerWidth < 1024) {
+                toggleSidebar();
+            }
+
+            // Refresh view data
+            if (tabName === 'dashboard') renderDashboard();
+            if (tabName === 'pos') { renderPosCatalog(); renderPosCart(); }
+            if (tabName === 'inventory') renderInventoryTable();
+            if (tabName === 'suppliers') renderSuppliersView();
+            if (tabName === 'accounting') renderAccountingView();
+        }
+
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            const colors = {
+                success: 'bg-navy-900 border-medical-500 text-white',
+                error: 'bg-rose-600 border-rose-800 text-white',
+                warning: 'bg-amber-500 border-amber-700 text-white'
+            };
+            const icons = {
+                success: 'fa-circle-check text-medical-400',
+                error: 'fa-circle-xmark text-white',
+                warning: 'fa-triangle-exclamation text-white'
+            };
+            toast.className = `pointer-events-auto flex items-center gap-3 px-4 py-3.5 rounded-xl border-r-4 shadow-xl text-sm font-bold fade-in ${colors[type]}`;
+            toast.innerHTML = `<i class="fa-solid ${icons[type]} text-lg"></i><span>${message}</span>`;
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transform = 'translateX(-20px)';
+                toast.style.transition = 'all 0.3s ease';
+                setTimeout(() => toast.remove(), 300);
+            }, 3200);
+        }
+
+        function openModal(id) {
+            const m = document.getElementById(id);
+            m.classList.remove('hidden');
+            m.classList.add('flex');
+        }
+
+        function closeModal(id) {
+            const m = document.getElementById(id);
+            m.classList.add('hidden');
+            m.classList.remove('flex');
+        }
+
+        function showConfirm(title, message, onConfirmCallback) {
+            document.getElementById('confirm-title').textContent = title;
+            document.getElementById('confirm-message').textContent = message;
+            const yesBtn = document.getElementById('confirm-yes-btn');
+            yesBtn.onclick = () => {
+                closeModal('confirm-modal');
+                onConfirmCallback();
+            };
+            openModal('confirm-modal');
+        }
+
+        // Helper: Check Medicine Status (Low Stock / Expiry)
+        function getMedicineStatus(med) {
+            const today = new Date();
+            const exp = new Date(med.expiryDate);
+            const diffDays = Math.ceil((exp - today) / (1000 * 60 * 60 * 24));
+            const boxesAvailable = med.stockStrips / med.stripsPerBox;
+
+            if (diffDays <= 0) {
+                return { code: 'expired', label: 'منتهي الصلاحية', badge: 'bg-rose-100 text-rose-700 border-rose-200', isAlert: true };
+            }
+            if (diffDays <= 60) {
+                return { code: 'expiring', label: `ينتهي خلال ${diffDays} يوم`, badge: 'bg-amber-100 text-amber-800 border-amber-200', isAlert: true };
+            }
+            if (boxesAvailable <= med.minBoxes) {
+                return { code: 'low', label: 'أوشك على النفاذ', badge: 'bg-orange-100 text-orange-700 border-orange-200', isAlert: true };
+            }
+            return { code: 'ok', label: 'متوفر', badge: 'bg-medical-50 text-medical-700 border-medical-200', isAlert: false };
+        }
+
+        function updateSidebarAlerts() {
+            const alertsCount = appState.medicines.filter(m => getMedicineStatus(m).isAlert).length;
+            const badge = document.getElementById('sidebar-alert-badge');
+            if (alertsCount > 0) {
+                badge.textContent = alertsCount;
+                badge.classList.remove('hidden');
+            } else {
+                badge.classList.add('hidden');
+            }
+        }
+
+        // --- 3. DASHBOARD LOGIC ---
+        function renderDashboard() {
+            const today = getTodayStr(0);
+            const validSales = appState.sales.filter(s => s.status !== 'returned');
+            const todaySales = validSales.filter(s => s.date === today);
+
+            const todayTotal = todaySales.reduce((sum, s) => sum + s.total, 0);
+            const totalSalesProfit = validSales.reduce((sum, s) => sum + s.profit, 0);
+            const totalExpenses = appState.expenses.reduce((sum, e) => sum + e.amount, 0);
+            const netProfit = totalSalesProfit - totalExpenses;
+
+            const inventoryValue = appState.medicines.reduce((sum, m) => {
+                const stripCost = m.buyPriceBox / m.stripsPerBox;
+                return sum + (m.stockStrips * stripCost);
+            }, 0);
+
+            const alertMeds = appState.medicines.filter(m => getMedicineStatus(m).isAlert);
+
+            // Update KPIs
+            document.getElementById('kpi-today-sales').textContent = formatMoney(todayTotal);
+            document.getElementById('kpi-today-invoices').textContent = `${todaySales.length} فاتورة`;
+            document.getElementById('kpi-net-profit').textContent = formatMoney(netProfit);
+            document.getElementById('kpi-inventory-val').textContent = formatMoney(inventoryValue);
+            document.getElementById('kpi-total-items').textContent = `${appState.medicines.length} صنف`;
+            document.getElementById('kpi-alerts-count').textContent = `${alertMeds.length} تنبيه`;
+            document.getElementById('dashboard-alert-pill').textContent = alertMeds.length;
+
+            // Render Alerts List
+            const alertsList = document.getElementById('dashboard-alerts-list');
+            if (alertMeds.length === 0) {
+                alertsList.innerHTML = `<div class="text-center py-8 text-slate-400 text-xs font-semibold"><i class="fa-solid fa-circle-check text-medical-500 text-2xl mb-2 block"></i>جميع الأدوية متوفرة وبصلاحية آمنة</div>`;
+            } else {
+                alertsList.innerHTML = alertMeds.map(med => {
+                    const st = getMedicineStatus(med);
+                    const boxes = Math.floor(med.stockStrips / med.stripsPerBox);
+                    const remStrips = med.stockStrips % med.stripsPerBox;
+                    return `
+                        <div class="p-3 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center justify-between gap-2">
+                            <div>
+                                <p class="text-xs font-extrabold text-navy-900">${med.name}</p>
+                                <p class="text-[11px] text-slate-500">المتاح: ${boxes} علبة و ${remStrips} شريط • ينتهي: ${med.expiryDate}</p>
+                            </div>
+                            <span class="text-[11px] font-bold px-2.5 py-1 rounded-lg border whitespace-nowrap ${st.badge}">${st.label}</span>
+                        </div>
+                    `;
+                }).join('');
+            }
+
+            // Render Recent Sales Table
+            const recentBody = document.getElementById('dashboard-recent-sales');
+            const recent = [...appState.sales].reverse().slice(0, 6);
+            recentBody.innerHTML = recent.map(sale => `
+                <tr class="hover:bg-slate-50/80 transition ${sale.status === 'returned' ? 'opacity-60 bg-rose-50/30' : ''}">
+                    <td class="py-3 px-4 font-extrabold text-navy-900">${sale.id}</td>
+                    <td class="py-3 px-4 text-xs text-slate-500">${sale.date} • ${sale.time}</td>
+                    <td class="py-3 px-4 text-xs font-bold">${sale.items.length} أصناف</td>
+                    <td class="py-3 px-4 text-xs text-rose-600 font-semibold">${formatMoney(sale.discount)}</td>
+                    <td class="py-3 px-4 font-extrabold text-medical-700">${formatMoney(sale.total)}</td>
+                    <td class="py-3 px-4 text-xs font-bold text-sky-700">${sale.status === 'returned' ? 'مرتجع' : formatMoney(sale.profit)}</td>
+                    <td class="py-3 px-4 text-center">
+                        <button onclick="viewReceipt('${sale.id}')" class="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-navy-900 hover:text-white text-slate-700 text-xs font-bold transition" title="طباعة الإيصال">
+                            <i class="fa-solid fa-receipt"></i>
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+
+            renderSalesChart();
+        }
+
+        function renderSalesChart() {
+            const ctx = document.getElementById('salesChart').getContext('2d');
+            const labels = [];
+            const salesData = [];
+            const profitData = [];
+
+            for (let i = 6; i >= 0; i--) {
+                const dateStr = getTodayStr(-i);
+                labels.push(dateStr.slice(5)); // MM-DD
+                const daySales = appState.sales.filter(s => s.date === dateStr && s.status !== 'returned');
+                // Add slight baseline visualization for older days if empty so chart looks rich, while keeping today accurate
+                const rev = daySales.reduce((sum, s) => sum + s.total, 0);
+                const prof = daySales.reduce((sum, s) => sum + s.profit, 0);
+                salesData.push(rev);
+                profitData.push(prof);
+            }
+
+            if (salesChartInstance) {
+                salesChartInstance.destroy();
+            }
+
+            salesChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'إجمالي المبيعات (ج.م)',
+                            data: salesData,
+                            backgroundColor: '#0f2942',
+                            borderRadius: 8,
+                            barPercentage: 0.55
+                        },
+                        {
+                            label: 'صافي الربح (ج.م)',
+                            data: profitData,
+                            backgroundColor: '#10b981',
+                            borderRadius: 8,
+                            barPercentage: 0.55
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                            labels: { font: { family: 'Cairo', weight: 'bold' } }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            grid: { color: '#f1f5f9' },
+                            ticks: { font: { family: 'Cairo' } }
+                        },
+                        x: {
+                            grid: { display: false },
+                            ticks: { font: { family: 'Cairo', weight: 'bold' } }
+                        }
+                    }
+                }
+            });
+        }
+
+        // --- 4. POS (POINT OF SALE) LOGIC ---
+        function filterPosCategory(cat) {
+            activePosCategory = cat;
+            document.querySelectorAll('.pos-cat-btn').forEach(btn => {
+                btn.classList.remove('bg-navy-900', 'text-white', 'font-bold');
+                btn.classList.add('bg-slate-100', 'text-slate-700', 'font-semibold');
+            });
+            event.target.classList.remove('bg-slate-100', 'text-slate-700', 'font-semibold');
+            event.target.classList.add('bg-navy-900', 'text-white', 'font-bold');
+            renderPosCatalog();
+        }
+
+        function renderPosCatalog() {
+            const query = document.getElementById('pos-search-input').value.trim().toLowerCase();
+            const grid = document.getElementById('pos-catalog-grid');
+
+            const filtered = appState.medicines.filter(med => {
+                const matchesCat = activePosCategory === 'all' || med.category === activePosCategory;
+                const matchesQuery = med.name.toLowerCase().includes(query) ||
+                                     med.activeIngredient.toLowerCase().includes(query) ||
+                                     med.barcode.includes(query);
+                return matchesCat && matchesQuery;
+            });
+
+            if (filtered.length === 0) {
+                grid.innerHTML = `<div class="col-span-full bg-white p-8 rounded-2xl text-center text-slate-400 font-bold border border-slate-200">لا توجد أدوية مطابقة للبحث</div>`;
+                return;
+            }
+
+            grid.innerHTML = filtered.map(med => {
+                const boxes = Math.floor(med.stockStrips / med.stripsPerBox);
+                const remStrips = med.stockStrips % med.stripsPerBox;
+                const stripPrice = (med.sellPriceBox / med.stripsPerBox).toFixed(2);
+                const st = getMedicineStatus(med);
+                const outOfStock = med.stockStrips <= 0 || st.code === 'expired';
+
+                return `
+                    <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm hover:border-medical-500 transition flex flex-col justify-between ${outOfStock ? 'opacity-60' : ''}">
+                        <div>
+                            <div class="flex items-start justify-between gap-2 mb-1">
+                                <h4 class="font-extrabold text-sm text-navy-900 leading-snug">${med.name}</h4>
+                                <span class="text-[10px] font-bold px-2 py-0.5 rounded-md border ${st.badge}">${st.label}</span>
+                            </div>
+                            <p class="text-[11px] text-slate-500 mb-2">${med.activeIngredient} • <span class="font-mono">${med.barcode}</span></p>
+                        </div>
+
+                        <div class="pt-2 border-t border-slate-100 space-y-2.5">
+                            <div class="flex items-center justify-between text-xs">
+                                <span class="text-slate-500">المتاح: <strong class="text-slate-800">${boxes} علبة، ${remStrips} شريط</strong></span>
+                                <span class="font-extrabold text-medical-600 text-sm">${med.sellPriceBox} ج.م</span>
+                            </div>
+                            <div class="grid grid-cols-2 gap-2">
+                                <button onclick="addToCart('${med.id}', 'box')" ${med.stockStrips < med.stripsPerBox || st.code === 'expired' ? 'disabled' : ''}
+                                    class="py-2 px-2 rounded-xl bg-navy-900 hover:bg-navy-800 disabled:bg-slate-200 disabled:text-slate-400 text-white text-xs font-bold transition flex items-center justify-center gap-1">
+                                    <i class="fa-solid fa-box"></i>
+                                    <span>علبة (${med.sellPriceBox})</span>
+                                </button>
+                                <button onclick="addToCart('${med.id}', 'strip')" ${med.stockStrips < 1 || st.code === 'expired' ? 'disabled' : ''}
+                                    class="py-2 px-2 rounded-xl bg-medical-50 hover:bg-medical-600 text-medical-700 hover:text-white disabled:bg-slate-100 disabled:text-slate-400 border border-medical-200 text-xs font-bold transition flex items-center justify-center gap-1">
+                                    <i class="fa-solid fa-tablets"></i>
+                                    <span>شريط (${stripPrice})</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function handlePosBarcodeEnter(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                const code = e.target.value.trim();
+                const found = appState.medicines.find(m => m.barcode === code);
+                if (found) {
+                    addToCart(found.id, 'box');
+                    e.target.value = '';
+                    renderPosCatalog();
+                } else {
+                    showToast('لم يتم العثور على دواء بهذا الباركود', 'warning');
+                }
+            }
+        }
+
+        function addToCart(medId, unit) {
+            const med = appState.medicines.find(m => m.id === medId);
+            if (!med) return;
+
+            const stripsNeededPerUnit = unit === 'box' ? med.stripsPerBox : 1;
+            const existingIndex = posCart.findIndex(item => item.medId === medId && item.unit === unit);
+
+            // Calculate total strips already in cart for this medicine
+            const currentStripsInCart = posCart
+                .filter(i => i.medId === medId)
+                .reduce((sum, i) => sum + (i.qty * (i.unit === 'box' ? med.stripsPerBox : 1)), 0);
+
+            if (currentStripsInCart + stripsNeededPerUnit > med.stockStrips) {
+                showToast('الكمية المطلوبة تتجاوز الرصيد المتوفر في المخزون!', 'error');
+                return;
+            }
+
+            const unitPrice = unit === 'box' ? med.sellPriceBox : (med.sellPriceBox / med.stripsPerBox);
+            const unitCost = unit === 'box' ? med.buyPriceBox : (med.buyPriceBox / med.stripsPerBox);
+
+            if (existingIndex > -1) {
+                posCart[existingIndex].qty += 1;
+            } else {
+                posCart.push({
+                    medId: med.id,
+                    name: med.name,
+                    unit: unit,
+                    qty: 1,
+                    unitPrice: Number(unitPrice.toFixed(2)),
+                    unitCost: Number(unitCost.toFixed(2)),
+                    stripsPerBox: med.stripsPerBox
+                });
+            }
+
+            renderPosCart();
+        }
+
+        function updateCartQty(index, delta) {
+            const item = posCart[index];
+            const med = appState.medicines.find(m => m.id === item.medId);
+            const newQty = item.qty + delta;
+
+            if (newQty <= 0) {
+                posCart.splice(index, 1);
+                renderPosCart();
+                return;
+            }
+
+            if (delta > 0) {
+                const stripsPerUnit = item.unit === 'box' ? med.stripsPerBox : 1;
+                const currentStripsInCart = posCart
+                    .filter(i => i.medId === item.medId)
+                    .reduce((sum, i) => sum + (i.qty * (i.unit === 'box' ? med.stripsPerBox : 1)), 0);
+
+                if (currentStripsInCart + stripsPerUnit > med.stockStrips) {
+                    showToast('لا توجد كمية إضافية كافية في المخزون', 'warning');
+                    return;
+                }
+            }
+
+            item.qty = newQty;
+            renderPosCart();
+        }
+
+        function clearPosCart() {
+            posCart = [];
+            document.getElementById('pos-discount-val').value = 0;
+            document.getElementById('pos-paid-amount').value = '';
+            document.getElementById('pos-customer-name').value = '';
+            renderPosCart();
+        }
+
+        function renderPosCart() {
+            const container = document.getElementById('pos-cart-items');
+            if (posCart.length === 0) {
+                container.innerHTML = `
+                    <div class="py-10 text-center text-slate-400">
+                        <i class="fa-solid fa-basket-shopping text-3xl mb-2 block text-slate-300"></i>
+                        <p class="text-xs font-bold">السلة فارغة</p>
+                        <p class="text-[11px]">اختر الأدوية من القائمة أو امسح الباركود</p>
+                    </div>
+                `;
+            } else {
+                container.innerHTML = posCart.map((item, idx) => `
+                    <div class="pt-2.5 first:pt-0 flex items-center justify-between gap-2">
+                        <div class="flex-1">
+                            <p class="text-xs font-extrabold text-navy-900">${item.name}</p>
+                            <span class="inline-block text-[10px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-600">
+                                ${item.unit === 'box' ? 'علبة كاملة' : 'شريط (تجزئة)'} • ${item.unitPrice.toFixed(2)} ج.م
+                            </span>
+                        </div>
+                        <div class="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl">
+                            <button onclick="updateCartQty(${idx}, -1)" class="w-6 h-6 rounded-lg bg-white text-slate-700 font-bold hover:bg-rose-500 hover:text-white transition">-</button>
+                            <span class="w-6 text-center text-xs font-extrabold">${item.qty}</span>
+                            <button onclick="updateCartQty(${idx}, 1)" class="w-6 h-6 rounded-lg bg-white text-slate-700 font-bold hover:bg-medical-600 hover:text-white transition">+</button>
+                        </div>
+                        <div class="text-left min-w-[65px]">
+                            <p class="text-xs font-extrabold text-navy-900">${(item.qty * item.unitPrice).toFixed(2)}</p>
+                        </div>
+                    </div>
+                `).join('');
+            }
+            recalculatePosTotals();
+        }
+
+        function recalculatePosTotals() {
+            const subtotal = posCart.reduce((sum, item) => sum + (item.qty * item.unitPrice), 0);
+            const discVal = parseFloat(document.getElementById('pos-discount-val').value) || 0;
+            const discType = document.getElementById('pos-discount-type').value;
+            const taxPercent = parseFloat(document.getElementById('pos-tax-percent').value) || 0;
+
+            let discountAmount = discType === 'percent' ? (subtotal * (discVal / 100)) : discVal;
+            if (discountAmount > subtotal) discountAmount = subtotal;
+
+            const afterDiscount = subtotal - discountAmount;
+            const taxAmount = afterDiscount * (taxPercent / 100);
+            const grandTotal = afterDiscount + taxAmount;
+
+            document.getElementById('pos-subtotal').textContent = formatMoney(subtotal);
+            document.getElementById('pos-discount-display').textContent = `- ${formatMoney(discountAmount)}`;
+            document.getElementById('pos-tax-display').textContent = `+ ${formatMoney(taxAmount)}`;
+            document.getElementById('pos-grand-total').textContent = formatMoney(grandTotal);
+
+            calculateChange();
+            return { subtotal, discountAmount, taxAmount, grandTotal };
+        }
+
+        function calculateChange() {
+            const subtotal = posCart.reduce((sum, item) => sum + (item.qty * item.unitPrice), 0);
+            const discVal = parseFloat(document.getElementById('pos-discount-val').value) || 0;
+            const discType = document.getElementById('pos-discount-type').value;
+            const taxPercent = parseFloat(document.getElementById('pos-tax-percent').value) || 0;
+            let discountAmount = discType === 'percent' ? (subtotal * (discVal / 100)) : discVal;
+            if (discountAmount > subtotal) discountAmount = subtotal;
+            const grandTotal = (subtotal - discountAmount) * (1 + taxPercent / 100);
+
+            const paid = parseFloat(document.getElementById('pos-paid-amount').value);
+            const change = !isNaN(paid) ? Math.max(0, paid - grandTotal) : 0;
+            document.getElementById('pos-change-amount').textContent = formatMoney(change);
+        }
+
+        function completeSale() {
+            if (posCart.length === 0) {
+                showToast('السلة فارغة! أضف أصنافاً أولاً لإتمام البيع.', 'warning');
+                return;
+            }
+
+            const { subtotal, discountAmount, taxAmount, grandTotal } = recalculatePosTotals();
+            const paidInput = parseFloat(document.getElementById('pos-paid-amount').value);
+            const paid = !isNaN(paidInput) && paidInput >= grandTotal ? paidInput : grandTotal;
+            const change = Math.max(0, paid - grandTotal);
+
+            let totalCost = 0;
+            const invoiceItems = posCart.map(item => {
+                const med = appState.medicines.find(m => m.id === item.medId);
+                const stripsDeducted = item.qty * (item.unit === 'box' ? med.stripsPerBox : 1);
+                // Deduct from stock
+                med.stockStrips = Math.max(0, med.stockStrips - stripsDeducted);
+                totalCost += (item.qty * item.unitCost);
+
+                return {
+                    medId: item.medId,
+                    name: item.name,
+                    unit: item.unit,
+                    qty: item.qty,
+                    unitPrice: item.unitPrice,
+                    unitCost: item.unitCost,
+                    stripsCount: stripsDeducted
+                };
+            });
+
+            const profit = (subtotal - discountAmount) - totalCost;
+            const now = new Date();
+            const timeStr = now.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
+
+            const newInvoice = {
+                id: 'INV-' + (1001 + appState.sales.length),
+                date: getTodayStr(0),
+                time: timeStr,
+                customer: document.getElementById('pos-customer-name').value.trim() || 'عميل نقدي',
+                items: invoiceItems,
+                subtotal: Number(subtotal.toFixed(2)),
+                discount: Number(discountAmount.toFixed(2)),
+                tax: Number(taxAmount.toFixed(2)),
+                total: Number(grandTotal.toFixed(2)),
+                totalCost: Number(totalCost.toFixed(2)),
+                profit: Number(profit.toFixed(2)),
+                paid: Number(paid.toFixed(2)),
+                change: Number(change.toFixed(2)),
+                status: 'completed'
+            };
+
+            appState.sales.push(newInvoice);
+            saveState();
+            clearPosCart();
+            renderPosCatalog();
+            showToast('تم إتمام البيع بنجاح وخصم الكميات من المخزون!');
+            viewReceipt(newInvoice.id);
+        }
+
+        function viewReceipt(invoiceId) {
+            const inv = appState.sales.find(s => s.id === invoiceId);
+            if (!inv) return;
+
+            const receiptEl = document.getElementById('printable-receipt');
+            receiptEl.innerHTML = `
+                <div class="text-center border-b-2 border-dashed border-slate-400 pb-3 mb-3">
+                    <h2 class="text-base font-extrabold">صيدليتي برو الحديثة</h2>
+                    <p class="text-[11px] text-slate-600">الحي المتميز - مدينة 6 أكتوبر</p>
+                    <p class="text-[11px] text-slate-600">ت: 01000000000 • س.ت: 984512</p>
+                </div>
+                <div class="text-[11px] space-y-1 border-b border-dashed border-slate-300 pb-2 mb-2">
+                    <div class="flex justify-between"><span>رقم الفاتورة:</span><strong>${inv.id}</strong></div>
+                    <div class="flex justify-between"><span>التاريخ:</span><span>${inv.date} ${inv.time}</span></div>
+                    <div class="flex justify-between"><span>العميل:</span><span>${inv.customer}</span></div>
+                </div>
+                <table class="w-full text-right text-[11px] mb-3">
+                    <thead>
+                        <tr class="border-b border-slate-400">
+                            <th class="py-1">الصنف</th>
+                            <th class="py-1 text-center">الكمية</th>
+                            <th class="py-1 text-left">القيمة</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-200">
+                        ${inv.items.map(i => `
+                            <tr>
+                                <td class="py-1.5 font-bold">${i.name}<br><span class="text-[9px] font-normal text-slate-500">${i.unit === 'box' ? 'علبة' : 'شريط'} × ${i.unitPrice}</span></td>
+                                <td class="py-1.5 text-center">${i.qty}</td>
+                                <td class="py-1.5 text-left font-bold">${(i.qty * i.unitPrice).toFixed(2)}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+                <div class="border-t-2 border-dashed border-slate-400 pt-2 space-y-1 text-[11px]">
+                    <div class="flex justify-between"><span>المجموع الفرعي:</span><span>${inv.subtotal.toFixed(2)} ج.م</span></div>
+                    ${inv.discount > 0 ? `<div class="flex justify-between"><span>الخصم:</span><span>- ${inv.discount.toFixed(2)} ج.م</span></div>` : ''}
+                    ${inv.tax > 0 ? `<div class="flex justify-between"><span>الضريبة:</span><span>+ ${inv.tax.toFixed(2)} ج.م</span></div>` : ''}
+                    <div class="flex justify-between text-sm font-extrabold pt-1 border-t border-slate-300">
+                        <span>الإجمالي المستحق:</span>
+                        <span>${inv.total.toFixed(2)} ج.م</span>
+                    </div>
+                    <div class="flex justify-between"><span>المدفوع:</span><span>${inv.paid.toFixed(2)} ج.م</span></div>
+                    <div class="flex justify-between"><span>المتبقي:</span><span>${inv.change.toFixed(2)} ج.م</span></div>
+                </div>
+                <div class="text-center mt-4 pt-3 border-t border-dashed border-slate-300 text-[10px] text-slate-600">
+                    <p class="font-bold">مع تمنياتنا لكم بالشفاء العاجل</p>
+                    <p>الأدوية المباعة لا ترد إلا خلال 24 ساعة بالفاتورة</p>
+                </div>
+            `;
+            openModal('receipt-modal');
+        }
+
+        // --- 5. INVENTORY MANAGEMENT LOGIC ---
+        function renderInventoryTable() {
+            const query = document.getElementById('inv-search').value.trim().toLowerCase();
+            const statusFilter = document.getElementById('inv-status-filter').value;
+            const tbody = document.getElementById('inventory-table-body');
+
+            const filtered = appState.medicines.filter(med => {
+                const st = getMedicineStatus(med);
+                const matchesQuery = med.name.toLowerCase().includes(query) ||
+                                     med.activeIngredient.toLowerCase().includes(query) ||
+                                     med.barcode.includes(query) ||
+                                     med.company.toLowerCase().includes(query);
+                if (!matchesQuery) return false;
+                if (statusFilter === 'all') return true;
+                if (statusFilter === 'ok') return st.code === 'ok';
+                if (statusFilter === 'low') return st.code === 'low';
+                if (statusFilter === 'expiring') return st.code === 'expiring' || st.code === 'expired';
+                return true;
+            });
+
+            tbody.innerHTML = filtered.map(med => {
+                const st = getMedicineStatus(med);
+                const boxes = Math.floor(med.stockStrips / med.stripsPerBox);
+                const remStrips = med.stockStrips % med.stripsPerBox;
+                const stripPrice = (med.sellPriceBox / med.stripsPerBox).toFixed(2);
+
+                return `
+                    <tr class="hover:bg-slate-50 transition">
+                        <td class="py-3.5 px-4">
+                            <p class="font-extrabold text-navy-900">${med.name}</p>
+                            <span class="text-[11px] font-mono text-slate-400"><i class="fa-solid fa-barcode ml-1"></i>${med.barcode}</span>
+                        </td>
+                        <td class="py-3.5 px-4">
+                            <p class="text-xs font-bold text-slate-700">${med.activeIngredient}</p>
+                            <span class="text-[11px] text-slate-400">${med.company} • ${med.category}</span>
+                        </td>
+                        <td class="py-3.5 px-4 text-xs font-bold text-slate-600">${med.buyPriceBox.toFixed(2)} ج.م</td>
+                        <td class="py-3.5 px-4">
+                            <p class="text-xs font-extrabold text-medical-700">${med.sellPriceBox.toFixed(2)} ج.م / علبة</p>
+                            <span class="text-[11px] text-slate-500">${stripPrice} ج.م / شريط (${med.stripsPerBox} شرائط)</span>
+                        </td>
+                        <td class="py-3.5 px-4">
+                            <span class="font-extrabold text-navy-900">${boxes}</span> <span class="text-xs text-slate-500">علبة</span>
+                            ${remStrips > 0 ? `+ <span class="font-bold text-medical-600">${remStrips}</span> <span class="text-xs text-slate-500">شريط</span>` : ''}
+                        </td>
+                        <td class="py-3.5 px-4 text-xs">
+                            <p class="font-mono font-bold text-slate-700">${med.batch}</p>
+                            <span class="text-slate-500">${med.expiryDate}</span>
+                        </td>
+                        <td class="py-3.5 px-4">
+                            <span class="inline-block text-[11px] font-bold px-2.5 py-1 rounded-lg border ${st.badge}">${st.label}</span>
+                        </td>
+                        <td class="py-3.5 px-4 text-center">
+                            <div class="flex items-center justify-center gap-1.5">
+                                <button onclick="openMedicineModal('${med.id}')" class="p-2 rounded-lg bg-sky-50 text-sky-600 hover:bg-sky-600 hover:text-white transition" title="تعديل">
+                                    <i class="fa-solid fa-pen-to-square"></i>
+                                </button>
+                                <button onclick="deleteMedicine('${med.id}')" class="p-2 rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-600 hover:text-white transition" title="حذف">
+                                    <i class="fa-solid fa-trash"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function openMedicineModal(medId = null) {
+            const form = document.getElementById('medicine-form');
+            form.reset();
+            document.getElementById('med-id').value = '';
+
+            if (medId) {
+                const med = appState.medicines.find(m => m.id === medId);
+                if (med) {
+                    document.getElementById('medicine-modal-title').textContent = 'تعديل بيانات الدواء';
+                    document.getElementById('med-id').value = med.id;
+                    document.getElementById('med-name').value = med.name;
+                    document.getElementById('med-barcode').value = med.barcode;
+                    document.getElementById('med-active').value = med.activeIngredient;
+                    document.getElementById('med-company').value = med.company;
+                    document.getElementById('med-category').value = med.category;
+                    document.getElementById('med-strips-per-box').value = med.stripsPerBox;
+                    document.getElementById('med-buy-price').value = med.buyPriceBox;
+                    document.getElementById('med-sell-price').value = med.sellPriceBox;
+                    document.getElementById('med-stock-strips').value = med.stockStrips;
+                    document.getElementById('med-min-boxes').value = med.minBoxes;
+                    document.getElementById('med-batch').value = med.batch;
+                    document.getElementById('med-expiry').value = med.expiryDate;
+                }
+            } else {
+                document.getElementById('medicine-modal-title').textContent = 'إضافة دواء جديد للمخزون';
+                document.getElementById('med-barcode').value = '622100' + Math.floor(1000 + Math.random() * 9000);
+                document.getElementById('med-expiry').value = '2028-01-01';
+            }
+            openModal('medicine-modal');
+        }
+
+        function saveMedicine(e) {
+            e.preventDefault();
+            const id = document.getElementById('med-id').value;
+            const medData = {
+                id: id || 'MED-' + Date.now().toString().slice(-4),
+                name: document.getElementById('med-name').value.trim(),
+                barcode: document.getElementById('med-barcode').value.trim(),
+                activeIngredient: document.getElementById('med-active').value.trim(),
+                company: document.getElementById('med-company').value.trim(),
+                category: document.getElementById('med-category').value,
+                stripsPerBox: parseInt(document.getElementById('med-strips-per-box').value) || 1,
+                buyPriceBox: parseFloat(document.getElementById('med-buy-price').value) || 0,
+                sellPriceBox: parseFloat(document.getElementById('med-sell-price').value) || 0,
+                stockStrips: parseInt(document.getElementById('med-stock-strips').value) || 0,
+                minBoxes: parseInt(document.getElementById('med-min-boxes').value) || 5,
+                batch: document.getElementById('med-batch').value.trim(),
+                expiryDate: document.getElementById('med-expiry').value
+            };
+
+            if (id) {
+                const idx = appState.medicines.findIndex(m => m.id === id);
+                if (idx > -1) appState.medicines[idx] = medData;
+                showToast('تم تحديث بيانات الدواء بنجاح');
+            } else {
+                appState.medicines.push(medData);
+                showToast('تمت إضافة الدواء الجديد إلى المخزون');
+            }
+
+            saveState();
+            closeModal('medicine-modal');
+            renderInventoryTable();
+        }
+
+        function deleteMedicine(medId) {
+            showConfirm('حذف دواء من المخزون', 'هل أنت متأكد من حذف هذا الصنف نهائياً من قاعدة بيانات الصيدلية؟', () => {
+                appState.medicines = appState.medicines.filter(m => m.id !== medId);
+                saveState();
+                renderInventoryTable();
+                showToast('تم حذف الدواء من المخزون', 'warning');
+            });
+        }
+
+        // --- 6. SUPPLIERS & PURCHASES LOGIC ---
+        function renderSuppliersView() {
+            const grid = document.getElementById('suppliers-grid');
+            grid.innerHTML = appState.suppliers.map(sup => `
+                <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between space-y-4">
+                    <div class="flex items-start justify-between">
+                        <div>
+                            <h4 class="font-extrabold text-navy-900 text-base">${sup.name}</h4>
+                            <p class="text-xs text-slate-500 mt-1"><i class="fa-solid fa-phone ml-1 text-medical-600"></i>${sup.phone}</p>
+                        </div>
+                        <div class="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
+                            <i class="fa-solid fa-truck-field"></i>
+                        </div>
+                    </div>
+                    <div class="p-3 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-between">
+                        <span class="text-xs font-bold text-slate-500">المديونية المستحقة:</span>
+                        <span class="text-sm font-extrabold ${sup.balance > 0 ? 'text-rose-600' : 'text-medical-600'}">${formatMoney(sup.balance)}</span>
+                    </div>
+                    <button onclick="openPaySupplierModal('${sup.id}')" ${sup.balance <= 0 ? 'disabled' : ''}
+                        class="w-full py-2.5 rounded-xl bg-navy-900 hover:bg-navy-800 disabled:bg-slate-100 disabled:text-slate-400 text-white text-xs font-bold transition">
+                        <i class="fa-solid fa-hand-holding-dollar ml-1"></i> تسجيل سداد دفعة
+                    </button>
+                </div>
+            `).join('');
+
+            const tbody = document.getElementById('purchases-table-body');
+            tbody.innerHTML = [...appState.purchases].reverse().map(pur => `
+                <tr class="hover:bg-slate-50">
+                    <td class="py-3 px-4 font-extrabold text-navy-900">${pur.id}</td>
+                    <td class="py-3 px-4 font-bold text-slate-700">${pur.supplierName}</td>
+                    <td class="py-3 px-4 text-xs text-slate-500">${pur.date}</td>
+                    <td class="py-3 px-4 text-xs font-bold">${pur.medName} (${pur.boxes} علبة)</td>
+                    <td class="py-3 px-4 font-extrabold text-navy-900">${formatMoney(pur.total)}</td>
+                    <td class="py-3 px-4 text-xs font-bold text-medical-600">${formatMoney(pur.paid)}</td>
+                    <td class="py-3 px-4 text-xs font-bold text-rose-600">${formatMoney(pur.remaining)}</td>
+                </tr>
+            `).join('');
+        }
+
+        function openSupplierModal() {
+            document.getElementById('sup-name').value = '';
+            document.getElementById('sup-phone').value = '';
+            document.getElementById('sup-balance').value = 0;
+            openModal('supplier-modal');
+        }
+
+        function saveSupplier(e) {
+            e.preventDefault();
+            appState.suppliers.push({
+                id: 'SUP-' + Date.now().toString().slice(-4),
+                name: document.getElementById('sup-name').value.trim(),
+                phone: document.getElementById('sup-phone').value.trim(),
+                balance: parseFloat(document.getElementById('sup-balance').value) || 0
+            });
+            saveState();
+            closeModal('supplier-modal');
+            renderSuppliersView();
+            showToast('تمت إضافة المورد بنجاح');
+        }
+
+        function openPurchaseModal() {
+            const supSelect = document.getElementById('pur-supplier-id');
+            const medSelect = document.getElementById('pur-medicine-id');
+
+            supSelect.innerHTML = appState.suppliers.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+            medSelect.innerHTML = appState.medicines.map(m => `<option value="${m.id}">${m.name} (المتاح: ${Math.floor(m.stockStrips/m.stripsPerBox)} علبة)</option>`).join('');
+
+            autoFillPurchasePrice();
+            openModal('purchase-modal');
+        }
+
+        function autoFillPurchasePrice() {
+            const medId = document.getElementById('pur-medicine-id').value;
+            const med = appState.medicines.find(m => m.id === medId);
+            if (med) {
+                document.getElementById('pur-unit-cost').value = med.buyPriceBox;
+                calcPurchaseTotal();
+            }
+        }
+
+        function calcPurchaseTotal() {
+            const boxes = parseInt(document.getElementById('pur-boxes').value) || 0;
+            const cost = parseFloat(document.getElementById('pur-unit-cost').value) || 0;
+            document.getElementById('pur-total-display').textContent = formatMoney(boxes * cost);
+        }
+
+        function savePurchaseInvoice(e) {
+            e.preventDefault();
+            const supId = document.getElementById('pur-supplier-id').value;
+            const medId = document.getElementById('pur-medicine-id').value;
+            const boxes = parseInt(document.getElementById('pur-boxes').value) || 0;
+            const unitCost = parseFloat(document.getElementById('pur-unit-cost').value) || 0;
+            const paid = parseFloat(document.getElementById('pur-paid').value) || 0;
+
+            const sup = appState.suppliers.find(s => s.id === supId);
+            const med = appState.medicines.find(m => m.id === medId);
+            if (!sup || !med) return;
+
+            const total = boxes * unitCost;
+            const remaining = Math.max(0, total - paid);
+
+            // Update inventory stock & buy price
+            med.stockStrips += (boxes * med.stripsPerBox);
+            med.buyPriceBox = unitCost;
+
+            // Update supplier debt
+            sup.balance += remaining;
+
+            appState.purchases.push({
+                id: 'PUR-' + (501 + appState.purchases.length),
+                supplierId: sup.id,
+                supplierName: sup.name,
+                date: getTodayStr(0),
+                medName: med.name,
+                boxes: boxes,
+                unitCost: unitCost,
+                total: total,
+                paid: paid,
+                remaining: remaining
+            });
+
+            saveState();
+            closeModal('purchase-modal');
+            renderSuppliersView();
+            showToast(`تم تسجيل فاتورة الشراء وإضافة ${boxes} علبة للمخزون!`);
+        }
+
+        function openPaySupplierModal(supId) {
+            const sup = appState.suppliers.find(s => s.id === supId);
+            if (!sup) return;
+            document.getElementById('pay-sup-id').value = sup.id;
+            document.getElementById('pay-sup-name').textContent = sup.name;
+            document.getElementById('pay-sup-current').textContent = formatMoney(sup.balance);
+            document.getElementById('pay-sup-amount').value = sup.balance;
+            document.getElementById('pay-sup-amount').max = sup.balance;
+            openModal('pay-supplier-modal');
+        }
+
+        function submitSupplierPayment(e) {
+            e.preventDefault();
+            const supId = document.getElementById('pay-sup-id').value;
+            const amount = parseFloat(document.getElementById('pay-sup-amount').value) || 0;
+            const sup = appState.suppliers.find(s => s.id === supId);
+            if (sup && amount > 0) {
+                sup.balance = Math.max(0, sup.balance - amount);
+                saveState();
+                closeModal('pay-supplier-modal');
+                renderSuppliersView();
+                showToast(`تم سداد ${formatMoney(amount)} للمورد ${sup.name}`);
+            }
+        }
+
+        // --- 7. ACCOUNTING, EXPENSES & RETURNS LOGIC ---
+        function renderAccountingView() {
+            const validSales = appState.sales.filter(s => s.status !== 'returned');
+            const totalRevenue = validSales.reduce((sum, s) => sum + s.total, 0);
+            const totalCogs = validSales.reduce((sum, s) => sum + s.totalCost, 0);
+            const totalExpenses = appState.expenses.reduce((sum, e) => sum + e.amount, 0);
+            const netProfit = totalRevenue - totalCogs - totalExpenses;
+
+            document.getElementById('acc-total-revenue').textContent = formatMoney(totalRevenue);
+            document.getElementById('acc-total-cogs').textContent = formatMoney(totalCogs);
+            document.getElementById('acc-total-expenses').textContent = formatMoney(totalExpenses);
+            document.getElementById('acc-net-profit').textContent = formatMoney(netProfit);
+
+            // Render All Sales with Return Option
+            const search = document.getElementById('sales-history-search').value.trim().toLowerCase();
+            const salesBody = document.getElementById('all-sales-table-body');
+            const filteredSales = [...appState.sales].reverse().filter(s =>
+                s.id.toLowerCase().includes(search) || s.customer.toLowerCase().includes(search)
+            );
+
+            salesBody.innerHTML = filteredSales.map(s => `
+                <tr class="hover:bg-slate-50 ${s.status === 'returned' ? 'bg-rose-50/40' : ''}">
+                    <td class="py-3 px-3 font-extrabold text-navy-900">${s.id}</td>
+                    <td class="py-3 px-3">
+                        <p class="font-bold text-slate-700">${s.customer}</p>
+                        <span class="text-[10px] text-slate-400">${s.date} • ${s.time}</span>
+                    </td>
+                    <td class="py-3 px-3 font-extrabold text-medical-700">${formatMoney(s.total)}</td>
+                    <td class="py-3 px-3">
+                        ${s.status === 'returned'
+                            ? '<span class="px-2 py-0.5 rounded bg-rose-100 text-rose-700 font-bold text-[10px]">مرتجع</span>'
+                            : '<span class="px-2 py-0.5 rounded bg-medical-50 text-medical-700 font-bold text-[10px]">مكتملة</span>'}
+                    </td>
+                    <td class="py-3 px-3 text-center">
+                        <div class="flex items-center justify-center gap-1">
+                            <button onclick="viewReceipt('${s.id}')" class="px-2 py-1 rounded bg-slate-100 hover:bg-navy-900 hover:text-white text-slate-700 font-bold" title="عرض الإيصال">
+                                <i class="fa-solid fa-eye"></i>
+                            </button>
+                            ${s.status !== 'returned' ? `
+                                <button onclick="returnSaleInvoice('${s.id}')" class="px-2 py-1 rounded bg-rose-50 hover:bg-rose-600 text-rose-600 hover:text-white font-bold" title="عمل مرتجع وإعادة للمخزون">
+                                    <i class="fa-solid fa-rotate-left"></i>
+                                </button>
+                            ` : ''}
+                        </div>
+                    </td>
+                </tr>
+            `).join('');
+
+            // Render Expenses
+            const expBody = document.getElementById('expenses-table-body');
+            expBody.innerHTML = [...appState.expenses].reverse().map(e => `
+                <tr class="hover:bg-slate-50">
+                    <td class="py-3 px-3 font-bold text-navy-900">${e.title}</td>
+                    <td class="py-3 px-3"><span class="px-2 py-0.5 rounded bg-slate-100 text-slate-600 font-semibold text-[10px]">${e.category}</span></td>
+                    <td class="py-3 px-3 text-slate-400">${e.date}</td>
+                    <td class="py-3 px-3 font-extrabold text-rose-600">${formatMoney(e.amount)}</td>
+                </tr>
+            `).join('');
+        }
+
+        function returnSaleInvoice(invoiceId) {
+            showConfirm(
+                'تأكيد مرتجع مبيعات',
+                `هل تريد استرجاع الفاتورة ${invoiceId}؟ سيتم إعادة جميع الأدوية المباعة فيها إلى رصيد المخزون وخصم قيمتها من الإيرادات.`,
+                () => {
+                    const inv = appState.sales.find(s => s.id === invoiceId);
+                    if (!inv || inv.status === 'returned') return;
+
+                    // Return items to stock
+                    inv.items.forEach(item => {
+                        const med = appState.medicines.find(m => m.id === item.medId);
+                        if (med) {
+                            med.stockStrips += item.stripsCount;
+                        }
+                    });
+
+                    inv.status = 'returned';
+                    saveState();
+                    renderAccountingView();
+                    showToast(`تم عمل مرتجع للفاتورة ${invoiceId} وإعادة الكميات للمخزون`, 'warning');
+                }
+            );
+        }
+
+        function openExpenseModal() {
+            document.getElementById('exp-title').value = '';
+            document.getElementById('exp-amount').value = '';
+            openModal('expense-modal');
+        }
+
+        function saveExpense(e) {
+            e.preventDefault();
+            appState.expenses.push({
+                id: 'EXP-' + Date.now().toString().slice(-4),
+                title: document.getElementById('exp-title').value.trim(),
+                category: document.getElementById('exp-category').value,
+                date: getTodayStr(0),
+                amount: parseFloat(document.getElementById('exp-amount').value) || 0
+            });
+            saveState();
+            closeModal('expense-modal');
+            renderAccountingView();
+            showToast('تم تسجيل المصروف بنجاح');
+        }
+
+        // --- 8. EXPORT CSV & RESET DATA ---
+        function exportAllDataCSV() {
+            let csvContent = "\uFEFF"; // UTF-8 BOM for Arabic Excel support
+            csvContent += "تقرير مخزون ومبيعات صيدليتي برو\n\n";
+            csvContent += "أولاً: جرد المخزون الحالي\n";
+            csvContent += "الاسم التجاري,الباركود,المادة الفعالة,الشركة,سعر الشراء,سعر البيع,الكمية بالشريط,تاريخ الصلاحية\n";
+
+            appState.medicines.forEach(m => {
+                csvContent += `"${m.name}","${m.barcode}","${m.activeIngredient}","${m.company}",${m.buyPriceBox},${m.sellPriceBox},${m.stockStrips},"${m.expiryDate}"\n`;
+            });
+
+            csvContent += "\nثانياً: سجل فواتير المبيعات\n";
+            csvContent += "رقم الفاتورة,التاريخ,العميل,الإجمالي,التكلفة,الربح,الحالة\n";
+            appState.sales.forEach(s => {
+                csvContent += `"${s.id}","${s.date}","${s.customer}",${s.total},${s.totalCost},${s.profit},"${s.status}"\n`;
+            });
+
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.setAttribute('href', url);
+            link.setAttribute('download', `Pharmacy_Report_${getTodayStr(0)}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            showToast('تم تصدير التقرير بصيغة Excel/CSV بنجاح!');
+        }
+
+        function confirmResetDemoData() {
+            showConfirm(
+                'إعادة ضبط البيانات التجريبية',
+                'سيتم مسح جميع الفواتير والتعديلات الحالية واستعادة البيانات الافتراضية للنظام. هل أنت متأكد؟',
+                () => {
+                    localStorage.removeItem(STORAGE_KEY);
+                    loadState();
+                    switchTab('dashboard');
+                    showToast('تمت استعادة البيانات التجريبية الافتراضية بنجاح');
+                }
+            );
+        }
+
+        // Keyboard Shortcut F2 for POS
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'F2') {
+                e.preventDefault();
+                switchTab('pos');
+                setTimeout(() => document.getElementById('pos-search-input').focus(), 100);
+            }
+        });
+
+        // --- BOOTSTRAP APPLICATION ---
+        window.onload = function() {
+            // Set Arabic Date in Header
+            const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+            document.getElementById('current-date-display').textContent = new Date().toLocaleDateString('ar-EG', options);
+
+            loadState();
+            updateSidebarAlerts();
+            renderDashboard();
+        };
+    </script>
+</body>
+</html>
